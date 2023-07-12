@@ -23,13 +23,13 @@ void loop(int in) {
 
     int pipefd[2];
     if (pipe(pipefd) < 0) {
-        fprintf(2, "pipe() failed\n");
+        fprintf(2, "primes: pipe failed\n");
         exit(1);
     }
 
     int pid = fork();
     if (pid < 0) {
-        fprintf(2, "fork() failed\n");
+        fprintf(2, "primes: fork failed\n");
         exit(1);
     } else if (pid == 0) {
         close(pipefd[1]);
@@ -56,12 +56,12 @@ int main(int argc, char *argv[]) {
 
     int pipefd[2];
     if (pipe(pipefd) < 0) {
-        fprintf(2, "pipe() failed\n");
+        fprintf(2, "primes: pipe failed\n");
         exit(1);
     }
     int pid = fork();
     if (pid < 0) {
-        fprintf(2, "fork() failed\n");
+        fprintf(2, "primes: fork failed\n");
         exit(1);
     } else if (pid == 0) {
         close(pipefd[1]);

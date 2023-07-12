@@ -6,12 +6,12 @@ void pingpong() {
     int pipefd_p2c[2];
     int pipefd_c2p[2];
     if (pipe(pipefd_p2c) < 0 || pipe(pipefd_c2p) < 0) {
-        fprintf(2, "pipe() failed\n");
+        fprintf(2, "pingpong: pipe failed\n");
         exit(1);
     }
     int child = fork();
     if (child < 0) {
-        fprintf(2, "fork() failed\n");
+        fprintf(2, "pingpong: fork failed\n");
         exit(1);
     } else if (child == 0) {
         // child
