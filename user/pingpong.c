@@ -19,15 +19,19 @@ void pingpong() {
         close(pipefd_c2p[0]);
         char buf[1];
         read(pipefd_p2c[0], buf, 1);
+        close(pipefd_p2c[0]);
         printf("%d: received ping\n", getpid());
         write(pipefd_c2p[1], buf, 1);
+        close(pipefd_c2p[1]);
     } else {
         // parent
         close(pipefd_p2c[0]);
         close(pipefd_c2p[1]);
         write(pipefd_p2c[1], &data, 1);
+        close(pipefd_p2c[1]);
         char buf[1];
         read(pipefd_c2p[0], buf, 1);
+        close(pipefd_c2p[0]);
         printf("%d: received pong\n", getpid());
     }
 }
