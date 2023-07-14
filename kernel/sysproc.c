@@ -75,6 +75,27 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  int npage;
+  uint64 startva;
+  uint64 useraddr;
+
+  argaddr(0, &startva);
+  argint(1, &npage);
+  argaddr(2, &useraddr);
+
+  struct proc *p = myproc();
+  uint64 bitmusk = 0;
+  
+  for (int i = 0; i < npage; ++i) {
+    pte_t *pte = walk(p->pagetable, startva + i * PGSIZE, 0);
+    if (*pte & PTE_A) {
+      bitmusk |= 1 << i;
+      *pte &= ~PTE_A;
+    }
+  }
+
+  copyout(myproc()->pagetable, useraddr, (char *)&bitmusk, sizeof(bitmusk));
+
   return 0;
 }
 #endif
