@@ -23,6 +23,8 @@ struct {
   struct run *freelist;
 } kmem;
 
+int count[PHYSTOP/PGSIZE];
+
 void
 kinit()
 {
@@ -51,6 +53,13 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  acquire(&kmem.lock);
+  if (--count[(uint64)pa >> PGSHIFT] > 0) {
+    release(&kmem.lock);
+    return;
+  }
+  release(&kmem.lock);
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -72,11 +81,46 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    count[(uint64)r >> PGSHIFT] = 1;
+  }
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+int
+cowhandle(pagetable_t pagetable, uint64 va)
+{
+  if (va >= MAXVA)
+    return -1;
+
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte == 0)
+    return -1;
+  if ((*pte & PTE_RSW) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_V) == 0)
+    return -1;
+
+  char *mem = kalloc();
+  if(mem == 0)
+    return -1;
+
+  uint64 pa = PTE2PA(*pte);
+  memmove(mem, (char*)pa, PGSIZE);
+  kfree((void*)pa);
+  uint flags = PTE_FLAGS(*pte);
+  *pte = PA2PTE((uint64)mem) | PTE_W | flags;
+  *pte &= ~PTE_RSW;
+  return 0;
+}
+
+void
+inccount(uint64 pa)
+{
+  acquire(&kmem.lock);
+  ++count[pa >> PGSHIFT];
+  release(&kmem.lock);
 }
