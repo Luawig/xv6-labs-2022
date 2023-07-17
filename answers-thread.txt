@@ -1,0 +1,5 @@
+in bucket1:
+    thread1 get key entry
+    thread2 get key entry
+    thread1 put key entry
+    thread2 put key entry(fugai thread1 put)
