@@ -58,3 +58,5 @@ struct dirent {
   char name[DIRSIZ];
 };
 
+// Max line depth
+#define MAXLNDEPTH  10
