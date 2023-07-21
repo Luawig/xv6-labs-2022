@@ -632,13 +632,8 @@ mmaphandle(uint64 va)
     kfree((void*)pa);
     return -1;
   }
+
   *pte = PA2PTE(pa) | PTE_U | PTE_V | (p->vma[index].prot << 1);
 
-  printf("mmaphandle: va = %p, pa = %p\n", va, pa);
-
-  // if (mappages(p->pagetable, va, PGSIZE, pa, flags) < 0) {
-  //   kfree((void*)pa);
-  //   return -1;
-  // }
   return 0;
 }

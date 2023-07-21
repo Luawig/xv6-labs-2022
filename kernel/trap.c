@@ -67,7 +67,6 @@ usertrap(void)
     syscall();
   } else if (r_scause() == 13) {
     if(mmaphandle(r_stval()) < 0) {
-      printf("mmaphandle return -1\n");
       p->killed = 1;
     }
   } else if((which_dev = devintr()) != 0){
