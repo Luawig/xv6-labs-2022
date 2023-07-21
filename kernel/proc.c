@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -145,6 +146,9 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // Set up vma list
+  p->vma_sp = TRAPFRAME;
 
   return p;
 }
@@ -296,6 +300,14 @@ fork(void)
   }
   np->sz = p->sz;
 
+  // Copy vma from parent to child.
+  for (i = 0; i < NVMA; ++i) {
+    np->vma[i] = p->vma[i];
+    if (np->vma[i].length) {
+      filedup(np->vma[i].file);
+    }
+  }
+
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -357,6 +369,25 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  // Free vma.
+  for (int i = 0; i < NVMA; ++i) {
+    if (p->vma[i].length) {
+      if (p->vma[i].flag == MAP_SHARED) {
+        filewrite(p->vma[i].file, p->vma[i].addr, p->vma[i].length);
+      }
+
+      for (uint64 va = p->vma[i].addr; va < p->vma[i].addr + p->vma[i].length; va += PGSIZE) {
+        pte_t *pte = walk(p->pagetable, va, 0);
+        if (*pte & PTE_V) {
+          uvmunmap(p->pagetable, va, 1, 1);
+        }
+      }
+
+      fileclose(p->vma[i].file);
+      p->vma[i].length = 0;
     }
   }
 

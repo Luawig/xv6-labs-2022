@@ -503,3 +503,142 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int length;
+  int prot;
+  int flag;
+  int fd;
+  int offset;
+
+  argaddr(0, &addr);
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flag);
+  argint(4, &fd);
+  argint(5, &offset);
+
+  struct proc *p = myproc();
+  struct file *f = p->ofile[fd];
+
+  if ((prot & PROT_READ) && (!f->readable)) {
+    return -1;
+  }
+ 
+  if (flag == MAP_SHARED) {
+    if (prot & PROT_WRITE && !f->writable) {
+      return -1;
+    }
+  }
+
+  for (int i = 0; i < NVMA; ++i) {
+    if (p->vma[i].addr == 0) {
+      p->vma_sp -= length;
+      p->vma[i].addr = p->vma_sp;
+      p->vma[i].length = length;
+      p->vma[i].prot = prot;
+      p->vma[i].flag = flag;
+      p->vma[i].file = f;
+      filedup(f);
+      return p->vma[i].addr;
+    }
+  }
+
+  return -1;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+
+  argaddr(0, &addr);
+  argint(1, &length);
+
+  struct proc *p = myproc();
+
+  int index;
+  for (index = NVMA - 1; index >= 0; --index) {
+    if (addr >= p->vma[index].addr && addr < p->vma[index].addr + p->vma[index].length) {
+      break;
+    }
+  }
+  if (index < 0)
+    return -1;
+
+  if (addr + length > p->vma[index].addr + p->vma[index].length)
+    return -1;
+
+  if (p->vma[index].flag == MAP_SHARED) {
+    filewrite(p->vma[index].file, addr, length);
+  }
+
+  if (p->vma[index].addr == addr) {
+    p->vma[index].addr += length;
+  }
+  p->vma[index].length -= length;
+
+  if (p->vma[index].length == 0) {
+    p->vma[index].addr = 0;
+    p->vma[index].prot = 0;
+    p->vma[index].flag = 0;
+    fileclose(p->vma[index].file);
+    p->vma[index].file = 0;
+  }
+
+  for (uint64 va = addr; va + PGSIZE <= addr + length; va += PGSIZE) {
+    if (*(walk(p->pagetable, va, 0)) & PTE_V) {
+      uvmunmap(p->pagetable, va, 1, 0);
+    }
+  }
+
+  return 0;
+}
+
+int
+mmaphandle(uint64 va)
+{
+  struct proc *p = myproc();
+  int index;
+  for (index = NVMA - 1; index >= 0; --index) {
+    if (va >= p->vma[index].addr && va < p->vma[index].addr + p->vma[index].length) {
+      break;
+    }
+  }
+  if (index < 0)
+    return -1;
+
+  uint64 pa;
+  if ((pa = (uint64)kalloc()) == 0) {
+    return -1;
+  }
+
+  memset((void*)pa, 0, PGSIZE);
+
+  ilock(p->vma[index].file->ip);
+  if (readi(p->vma[index].file->ip, 0, pa, va - p->vma[index].addr, PGSIZE) < 0) {
+    kfree((void*)pa);
+    iunlock(p->vma[index].file->ip);
+    return -1;
+  }
+  iunlock(p->vma[index].file->ip);
+
+  pte_t *pte;
+  if ((pte = walk(p->pagetable, va, 1)) == 0) {
+    kfree((void*)pa);
+    return -1;
+  }
+  *pte = PA2PTE(pa) | PTE_U | PTE_V | (p->vma[index].prot << 1);
+
+  printf("mmaphandle: va = %p, pa = %p\n", va, pa);
+
+  // if (mappages(p->pagetable, va, PGSIZE, pa, flags) < 0) {
+  //   kfree((void*)pa);
+  //   return -1;
+  // }
+  return 0;
+}
